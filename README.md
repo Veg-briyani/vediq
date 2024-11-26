@@ -34,3 +34,27 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+
+
+src/
+├── app/
+│   └── page.tsx                    # Main page
+├── components/
+│   ├── BirthChartVisualization.tsx # Chart visualization
+│   ├── PlanetaryPositions.tsx      # Planet positions table
+│   ├── DashaPeriods.tsx           # Dasha periods display
+│   ├── TransitDisplay.tsx         # Transit positions
+│   └── ChartExport.tsx            # Export/Print functionality
+├── lib/
+│   ├── calculations/
+│   │   ├── core.ts                # Core calculations
+│   │   ├── dasha.ts              # Dasha calculations
+│   │   └── transit.ts            # Transit calculations
+│   ├── storage.ts                # Data persistence
+│   └── predictions.ts            # Prediction engine
+├── hooks/
+│   └── useAstrologyCalculations.ts # Custom hook
+└── types/
+    └── astrology.ts               # TypeScript types
