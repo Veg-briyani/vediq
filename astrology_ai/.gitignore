@@ -1,0 +1,131 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+astrology_env/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Astrology AI specific data
+data/books/*.pdf
+data/rules/*.db
+data/rules/*.sqlite
+data/rules/*.sqlite3
+data/charts/
+temp/
+cache/
+
+# Extracted knowledge exports
+*.json
+knowledge_exports/
+rule_exports/
+
+# Logs
+logs/
+*.log
+debug.log
+extraction.log
+
+# Configuration secrets
+config/secrets.yaml
+config/api_keys.yaml
+.env
+.env.local
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Model files (for future LLM integration)
+models/
+*.bin
+*.safetensors
+*.gguf
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# Test outputs
+test_outputs/
+test_data/processed/
+
+# Documentation builds
+docs/_build/
+docs/site/
+
+# Large data files
+*.zip
+*.tar.gz
+*.rar
+
+# Temporary processing files
+processing_temp/
+pdf_temp/
+extraction_temp/
+
+# Database backups
+*.sql
+db_backup/
+
+# User-specific configuration
+user_config.yaml
+personal_notes.md
+
+# Experimental branches work
+experiments/
+sandbox/
+prototype/

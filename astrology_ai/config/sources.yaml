@@ -1,0 +1,148 @@
+# config/sources.yaml
+# Configuration for astrology source hierarchy and authority levels
+
+classical_sources:
+  # Highest authority - ancient classical texts
+  - title: "Brihat Parashara Hora Shastra"
+    author: "Maharishi Parashara"
+    authority_level: 1
+    language: "Sanskrit"
+    period: "Ancient"
+    description: "Foundational classical text of Vedic astrology"
+    
+  - title: "Jaimini Sutras"
+    author: "Maharishi Jaimini"
+    authority_level: 1
+    language: "Sanskrit"
+    period: "Ancient"
+    description: "Alternative system of Vedic astrology"
+    
+  - title: "Phaladeepika"
+    author: "Mantreshwar"
+    authority_level: 1
+    language: "Sanskrit"
+    period: "Medieval"
+    description: "Comprehensive classical text on predictive astrology"
+
+traditional_sources:
+  # High authority - traditional authors and commentaries
+  - title: "Saravali"
+    author: "Kalyana Varma"
+    authority_level: 2
+    language: "Sanskrit"
+    period: "Medieval"
+    description: "Important classical text on astrological principles"
+    
+  - title: "Uttara Kalamrita"
+    author: "Kalidasa"
+    authority_level: 2
+    language: "Sanskrit"
+    period: "Medieval"
+    description: "Advanced classical text on Vedic astrology"
+
+modern_sources:
+  # Medium authority - respected modern authors
+  - title: "Light on Life"
+    author: "Hart de Fouw & Robert Svoboda"
+    authority_level: 3
+    language: "English"
+    period: "Modern"
+    description: "Modern interpretation of Vedic astrology"
+    
+  - title: "Vedic Astrology"
+    author: "David Frawley"
+    authority_level: 3
+    language: "English"
+    period: "Modern"
+    description: "Introduction to Vedic astrology principles"
+
+# Priority processing order (higher number = higher priority)
+source_priority:
+  classical: 10
+  traditional: 7
+  modern: 5
+  commentary: 3
+
+# Rules for handling conflicting information
+conflict_resolution:
+  # When multiple sources give different interpretations
+  prefer_higher_authority: true
+  require_multiple_confirmations: false
+  flag_contradictions: true
+  
+  # Confidence scoring adjustments
+  classical_bonus: 0.3
+  traditional_bonus: 0.2
+  modern_bonus: 0.1
+  
+# Book processing settings
+processing_settings:
+  # Minimum sentence length to consider
+  min_sentence_length: 10
+  
+  # Maximum sentence length to consider
+  max_sentence_length: 500
+  
+  # Minimum confidence score to store rule
+  min_confidence_threshold: 0.3
+  
+  # Skip common non-rule patterns
+  skip_patterns:
+    - "table of contents"
+    - "index"
+    - "bibliography"
+    - "about the author"
+    - "preface"
+    - "introduction to"
+    
+# Tag categories for organizing rules
+tag_categories:
+  planets:
+    - sun
+    - moon
+    - mars
+    - mercury
+    - jupiter
+    - venus
+    - saturn
+    - rahu
+    - ketu
+    
+  houses:
+    - house1
+    - house2
+    - house3
+    - house4
+    - house5
+    - house6
+    - house7
+    - house8
+    - house9
+    - house10
+    - house11
+    - house12
+    
+  signs:
+    - aries
+    - taurus
+    - gemini
+    - cancer
+    - leo
+    - virgo
+    - libra
+    - scorpio
+    - sagittarius
+    - capricorn
+    - aquarius
+    - pisces
+    
+  effects:
+    - wealth
+    - health
+    - marriage
+    - career
+    - education
+    - spiritual
+    - family
+    - travel
+    - general
