@@ -8,16 +8,42 @@ import sqlite3
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from data_models import AstrologicalRule, AstrologicalCondition, SourceInfo, AuthorityLevel
+from .data_models import AstrologicalRule, AstrologicalCondition, SourceInfo, AuthorityLevel
+
+# Import configuration system
+import sys
+config_path = Path(__file__).parent.parent / "config"
+sys.path.insert(0, str(config_path))
+
+try:
+    from settings import get_config, get_database_path, get_export_path
+except ImportError:
+    # Fallback for when config system is not available
+    def get_database_path(db_type: str = "main") -> Path:
+        return Path("data/astrology_rules.db")
+    
+    def get_export_path(filename: str) -> Path:
+        return Path("data") / filename
 
 
 class KnowledgeBase:
     """
     Manages storage and retrieval of astrological rules
+    Uses centralized configuration for all file paths
     """
     
-    def __init__(self, db_path: str = "data/astrology_rules.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
+        """
+        Initialize knowledge base with optional custom database path
+        
+        Args:
+            db_path: Custom database path (optional, uses config if not provided)
+        """
+        if db_path:
+            self.db_path = db_path
+        else:
+            self.db_path = str(get_database_path())
+        
         self.ensure_database_exists()
     
     def ensure_database_exists(self):
@@ -63,6 +89,49 @@ class KnowledgeBase:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_rules_source ON rules(source_title);
             """)
+            
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS astrological_rules (
+                    id TEXT PRIMARY KEY,
+                    original_text TEXT NOT NULL,
+                    
+                    -- Conditions
+                    planet TEXT,
+                    house INTEGER,
+                    sign TEXT,
+                    aspect TEXT,
+                    strength TEXT,
+                    
+                    -- Effects (JSON array)
+                    effects TEXT,
+                    
+                    -- Source information
+                    source_title TEXT,
+                    source_author TEXT,
+                    authority_level INTEGER,
+                    page_number INTEGER,
+                    
+                    -- Metadata
+                    confidence_score REAL,
+                    tags TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    
+                    -- Search indexes
+                    search_text TEXT -- For full-text search
+                )
+            ''')
+            
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_planet ON astrological_rules(planet)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_house ON astrological_rules(house)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_sign ON astrological_rules(sign)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_authority ON astrological_rules(authority_level)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_confidence ON astrological_rules(confidence_score)')
+            
+            conn.execute('''
+                CREATE VIRTUAL TABLE IF NOT EXISTS rules_fts USING fts5(
+                    id, original_text, search_text, content='astrological_rules'
+                )
+            ''')
             
             conn.commit()
     
@@ -128,7 +197,7 @@ class KnowledgeBase:
         tags = json.loads(row['tags_json'])
         
         # Reconstruct condition object
-        from data_models import AstrologicalCondition, AstrologicalEffect
+        from .data_models import AstrologicalCondition, AstrologicalEffect
         
         condition = AstrologicalCondition(
             planet=conditions_data.get('planet'),
@@ -183,7 +252,7 @@ class KnowledgeBase:
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("""
                     INSERT OR REPLACE INTO rules 
-                    (id, original_text, planet, house, sign, nakshatra, 
+                    (  planet, house, sign, nakshatra, 
                      conditions_json, effects_json, source_title, source_author, 
                      source_page, authority_level, tags_json, confidence_score, 
                      created_at, updated_at)
@@ -363,49 +432,81 @@ class KnowledgeBase:
             'average_confidence': round(avg_confidence, 3) if avg_confidence else 0
         }
     
-    def export_rules_json(self, output_path: str = "data/rules_export.json"):
-        """Export all rules to JSON file"""
+    def export_rules_json(self, output_path: str = None):
+        """Export all rules to JSON format using configuration paths"""
         
-        all_rules = self.search_rules()
+        if output_path is None:
+            try:
+                output_path = str(get_export_path("rules_export.json"))
+            except:
+                output_path = "data/rules_export.json"
+        
+        # Ensure export directory exists
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            
+            # Query the correct table where data is actually stored
+            cursor = conn.execute('''
+                SELECT id, original_text, planet, house, sign, nakshatra,
+                       conditions_json, effects_json, source_title, source_author,
+                       source_page, authority_level, tags_json, confidence_score,
+                       created_at, updated_at
+                FROM rules 
+                ORDER BY confidence_score DESC, authority_level ASC
+            ''')
+            
+            rules = []
+            for row in cursor:
+                rule_dict = dict(row)
+                
+                # Parse JSON fields
+                try:
+                    if rule_dict['conditions_json']:
+                        rule_dict['conditions'] = json.loads(rule_dict['conditions_json'])
+                    else:
+                        rule_dict['conditions'] = {}
+                    
+                    if rule_dict['effects_json']:
+                        rule_dict['effects'] = json.loads(rule_dict['effects_json'])
+                    else:
+                        rule_dict['effects'] = []
+                    
+                    if rule_dict['tags_json']:
+                        rule_dict['tags'] = json.loads(rule_dict['tags_json'])
+                    else:
+                        rule_dict['tags'] = []
+                    
+                    # Remove the raw JSON fields for cleaner output
+                    del rule_dict['conditions_json']
+                    del rule_dict['effects_json'] 
+                    del rule_dict['tags_json']
+                    
+                except json.JSONDecodeError as e:
+                    print(f"Warning: Error parsing JSON for rule {rule_dict['id']}: {e}")
+                    rule_dict['conditions'] = {}
+                    rule_dict['effects'] = []
+                    rule_dict['tags'] = []
+                
+                rules.append(rule_dict)
         
         export_data = {
-            'export_date': datetime.now().isoformat(),
-            'total_rules': len(all_rules),
-            'rules': []
+            'exported_at': datetime.now().isoformat(),
+            'total_rules': len(rules),
+            'database_path': self.db_path,
+            'export_info': {
+                'source': 'Astrology AI Knowledge Base',
+                'table': 'rules',
+                'version': '1.0.0'
+            },
+            'rules': rules
         }
         
-        for rule in all_rules:
-            rule_data = {
-                'id': rule.id,
-                'original_text': rule.original_text,
-                'conditions': {
-                    'planet': rule.conditions.planet,
-                    'house': rule.conditions.house,
-                    'sign': rule.conditions.sign,
-                    'additional': rule.conditions.additional_conditions
-                },
-                'effects': [
-                    {
-                        'category': effect.category,
-                        'description': effect.description,
-                        'positive': effect.positive
-                    }
-                    for effect in rule.effects
-                ],
-                'source': {
-                    'title': rule.source.title,
-                    'author': rule.source.author,
-                    'authority_level': rule.source.authority_level.name
-                },
-                'confidence_score': rule.confidence_score,
-                'tags': rule.tags
-            }
-            export_data['rules'].append(rule_data)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(export_data, f, indent=2, ensure_ascii=False)
         
-        with open(output_path, 'w') as f:
-            json.dump(export_data, f, indent=2)
-        
-        print(f"Exported {len(all_rules)} rules to {output_path}")
+        return output_path
 
 
 # Demo and testing functions
@@ -413,7 +514,7 @@ class KnowledgeBase:
 def demo_knowledge_base():
     """Demo the knowledge base functionality"""
     
-    from rule_extractor import RuleExtractor
+    from .rule_extractor import RuleExtractor
     
     # Create a test knowledge base
     kb = KnowledgeBase("data/test_astrology.db")

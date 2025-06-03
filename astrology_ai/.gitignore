@@ -26,28 +26,75 @@ MANIFEST
 *.manifest
 *.spec
 
-# Virtual environments
-venv/
-env/
-ENV/
-.venv/
-.env/
-astrology_env/
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
 
-# IDE files
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Jupyter Notebook
-.ipynb_checkpoints
+# Cursor IDE
+.cursor/
 
-# pytest
-.pytest_cache/
-.coverage
-htmlcov/
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+# Keep database but ignore temporary files
+data/*.tmp
+data/temp/
+data/cache/
+*.log
+logs/
+
+# Configuration files with sensitive data
+config/app_config.yaml
+!config/app_config.yaml.sample
+
+# Backup files
+*.bak
+*.backup
+
+# Processing temporary files
+temp_*
+*.tmp
+
+# PDF books (optional - comment out if you want to include them)
+# data/books/*.pdf
+
+# Context and development files  
+context.txt
+debug_*
 
 # Astrology AI specific data
 data/books/*.pdf
@@ -76,15 +123,12 @@ config/api_keys.yaml
 .env.local
 
 # macOS
-.DS_Store
 .AppleDouble
 .LSOverride
 Icon?
 ._*
 
 # Windows
-Thumbs.db
-ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 
@@ -93,11 +137,6 @@ models/
 *.bin
 *.safetensors
 *.gguf
-
-# Backup files
-*.bak
-*.backup
-*.orig
 
 # Test outputs
 test_outputs/

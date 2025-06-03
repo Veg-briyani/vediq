@@ -2,6 +2,7 @@
 """
 Complete Command Line Interface for Astrology AI Phase 1
 Integrates document processing, rule extraction, and knowledge storage
+Uses centralized configuration for all paths and settings
 """
 
 import click
@@ -10,11 +11,29 @@ import json
 import yaml
 from datetime import datetime
 
+# Import configuration system
+import sys
+config_path = Path(__file__).parent.parent / "config"
+sys.path.insert(0, str(config_path))
+
+try:
+    from settings import get_config, get_database_path, get_export_path, get_books_dir
+except ImportError:
+    # Fallback for when config system is not available
+    def get_config():
+        return None
+    def get_database_path(db_type: str = "main"):
+        return Path("data/astrology_rules.db")
+    def get_export_path(filename: str):
+        return Path("data") / filename
+    def get_books_dir():
+        return Path("data/books")
+
 # Import our modules
-from document_processor import DocumentProcessor
-from rule_extractor import RuleExtractor
-from knowledge_base import KnowledgeBase
-from data_models import SourceInfo, AuthorityLevel
+from .document_processor import DocumentProcessor
+from .rule_extractor import RuleExtractor
+from .knowledge_base import KnowledgeBase
+from .data_models import SourceInfo, AuthorityLevel
 
 
 @click.group()
@@ -88,9 +107,9 @@ def process_book(pdf_path, source_title, author, authority, extract_rules, show_
             
             click.echo(f"   Extracted {len(rules)} rules")
             
-            # Store in knowledge base
+            # Store in knowledge base using configuration
             if rules:
-                kb = KnowledgeBase()
+                kb = KnowledgeBase()  # Uses configuration for database path
                 stored_count = kb.store_rules_batch(rules)
                 click.echo(f"   ✅ Stored {stored_count} rules in knowledge base")
                 
@@ -127,13 +146,18 @@ def process_book(pdf_path, source_title, author, authority, extract_rules, show_
 
 
 @cli.command()
-@click.argument('directory', type=click.Path(exists=True))
+@click.argument('directory', type=click.Path(exists=True), required=False)
 @click.option('--authority', '-l',
               type=click.Choice(['classical', 'traditional', 'modern', 'commentary']),
               default='modern', help='Default authority level for all books')
 @click.option('--extract-rules', '-r', is_flag=True, help='Extract and store rules')
 def batch_process(directory, authority, extract_rules):
-    """Process all PDFs in a directory"""
+    """Process all PDFs in a directory (uses books directory from config if not specified)"""
+    
+    # Use configured books directory if none specified
+    if directory is None:
+        directory = str(get_books_dir())
+        click.echo(f"📁 Using configured books directory: {directory}")
     
     pdf_files = list(Path(directory).glob("*.pdf"))
     
@@ -145,7 +169,7 @@ def batch_process(directory, authority, extract_rules):
     
     processor = DocumentProcessor()
     extractor = RuleExtractor() if extract_rules else None
-    kb = KnowledgeBase() if extract_rules else None
+    kb = KnowledgeBase() if extract_rules else None  # Uses configuration for database path
     
     total_rules = 0
     
@@ -200,7 +224,7 @@ def batch_process(directory, authority, extract_rules):
 def search_rules(planet, house, sign, source, min_confidence, limit, export):
     """Search for rules in the knowledge base"""
     
-    kb = KnowledgeBase()
+    kb = KnowledgeBase()  # Uses configuration for database path
     
     try:
         rules = kb.search_rules(
@@ -258,46 +282,51 @@ def search_rules(planet, house, sign, source, min_confidence, limit, export):
 
 
 @cli.command()
+@click.option('--output', '-o', help='Output file path (uses configured export directory if not specified)')
+def export_knowledge(output):
+    """Export all rules from the knowledge base to JSON"""
+    
+    try:
+        kb = KnowledgeBase()  # Uses configuration for database path
+        
+        # Use configured export path if not specified
+        if output is None:
+            output = str(get_export_path('knowledge_export.json'))
+        
+        exported_path = kb.export_rules_json(output)
+        
+        stats = kb.get_database_stats()
+        click.echo(f"✅ Exported {stats['total_rules']} rules to: {exported_path}")
+        
+    except Exception as e:
+        click.echo(f"❌ Error exporting knowledge base: {e}")
+
+
+@cli.command()
 def stats():
     """Show knowledge base statistics"""
     
     try:
-        kb = KnowledgeBase()
+        kb = KnowledgeBase()  # Uses configuration for database path
         stats = kb.get_database_stats()
         
         click.echo("📊 Knowledge Base Statistics")
         click.echo("=" * 40)
         click.echo(f"Total rules: {stats['total_rules']}")
-        click.echo(f"Unique sources: {stats['unique_sources']}")
-        click.echo(f"Average confidence: {stats['average_confidence']}")
+        click.echo(f"Average confidence: {stats['average_confidence']:.2f}")
         
-        if stats['planet_distribution']:
-            click.echo(f"\n🪐 Planet distribution:")
-            for planet, count in stats['planet_distribution'].items():
+        if 'by_authority' in stats:
+            click.echo("\n📚 Rules by Authority Level:")
+            for authority, count in stats['by_authority'].items():
+                click.echo(f"   {authority}: {count}")
+        
+        if 'by_planet' in stats:
+            click.echo("\n🪐 Rules by Planet:")
+            for planet, count in stats['by_planet'].items():
                 click.echo(f"   {planet}: {count}")
         
-        if stats['house_distribution']:
-            click.echo(f"\n🏠 House distribution:")
-            for house, count in stats['house_distribution'].items():
-                click.echo(f"   House {house}: {count}")
-        
     except Exception as e:
-        click.echo(f"❌ Error getting stats: {e}")
-
-
-@cli.command()
-@click.option('--output', '-o', default='data/knowledge_export.json', 
-              help='Output file path')
-def export_knowledge(output):
-    """Export all rules to JSON file"""
-    
-    try:
-        kb = KnowledgeBase()
-        kb.export_rules_json(output)
-        click.echo(f"✅ Knowledge base exported to {output}")
-        
-    except Exception as e:
-        click.echo(f"❌ Error exporting: {e}")
+        click.echo(f"❌ Error getting statistics: {e}")
 
 
 @cli.command()
@@ -305,6 +334,23 @@ def test_setup():
     """Test if the setup is working correctly"""
     
     click.echo("🧪 Testing Astrology AI setup...")
+    
+    # Test configuration
+    try:
+        config = get_config()
+        if config:
+            click.echo("✅ Configuration system loaded")
+            
+            # Validate setup
+            validation = config.validate_setup()
+            click.echo("\n📊 Configuration validation:")
+            for check, result in validation.items():
+                status = "✅" if result else "❌"
+                click.echo(f"   {status} {check}: {result}")
+        else:
+            click.echo("⚠️  Using fallback configuration")
+    except Exception as e:
+        click.echo(f"❌ Configuration error: {e}")
     
     # Test imports
     try:
@@ -316,21 +362,39 @@ def test_setup():
         click.echo(f"❌ Missing package: {e}")
         return
     
-    # Test directories
-    required_dirs = ['data/books', 'data/rules', 'data/charts']
-    for dir_path in required_dirs:
-        if Path(dir_path).exists():
-            click.echo(f"✅ Directory exists: {dir_path}")
+    # Test directories using configuration
+    try:
+        config = get_config()
+        if config:
+            required_dirs = [
+                ('Books', config.directories.books_dir),
+                ('Rules', config.directories.rules_dir), 
+                ('Charts', config.directories.charts_dir),
+                ('Exports', config.directories.exports_dir)
+            ]
         else:
-            click.echo(f"❌ Directory missing: {dir_path}")
-            Path(dir_path).mkdir(parents=True, exist_ok=True)
-            click.echo(f"✅ Created directory: {dir_path}")
+            # Fallback directories
+            required_dirs = [
+                ('Books', Path('data/books')),
+                ('Rules', Path('data/rules')),
+                ('Charts', Path('data/charts'))
+            ]
+        
+        for name, dir_path in required_dirs:
+            if dir_path.exists():
+                click.echo(f"✅ {name} directory exists: {dir_path}")
+            else:
+                click.echo(f"❌ {name} directory missing: {dir_path}")
+                dir_path.mkdir(parents=True, exist_ok=True)
+                click.echo(f"✅ Created {name} directory: {dir_path}")
+    except Exception as e:
+        click.echo(f"❌ Directory setup error: {e}")
     
     # Test components
     try:
         processor = DocumentProcessor()
         extractor = RuleExtractor()
-        kb = KnowledgeBase()
+        kb = KnowledgeBase()  # Uses configuration for database path
         click.echo("✅ All components initialized successfully")
     except Exception as e:
         click.echo(f"❌ Component initialization error: {e}")
@@ -345,64 +409,54 @@ def test_setup():
     
     click.echo(f"\n🎉 Setup test complete! Ready to process astrology books.")
     click.echo(f"\n🚀 Next steps:")
-    click.echo(f"   1. Add PDF books to data/books/")
-    click.echo(f"   2. Run: python cli.py process-book data/books/your_book.pdf --extract-rules")
+    
+    try:
+        books_dir = get_books_dir()
+        click.echo(f"   1. Add PDF books to {books_dir}")
+        click.echo(f"   2. Run: python cli.py process-book {books_dir}/your_book.pdf --extract-rules")
+    except:
+        click.echo(f"   1. Add PDF books to data/books/")
+        click.echo(f"   2. Run: python cli.py process-book data/books/your_book.pdf --extract-rules")
+    
     click.echo(f"   3. View results: python cli.py stats")
 
 
 @cli.command()
-def demo():
-    """Run a demonstration with sample data"""
+def config_info():
+    """Show current configuration information"""
     
-    click.echo("🎯 Running Astrology AI demonstration...")
-    
-    # Create demo rules
-    from data_models import create_simple_rule
-    
-    demo_rules = [
-        create_simple_rule(
-            "Mars in the 7th house causes conflicts in marriage",
-            "Demo Astrology Book",
-            planet="Mars",
-            house=7,
-            effect_desc="conflicts in marriage"
-        ),
-        create_simple_rule(
-            "Jupiter in its own sign gives wisdom and prosperity", 
-            "Demo Astrology Book",
-            planet="Jupiter",
-            effect_desc="wisdom and prosperity"
-        ),
-        create_simple_rule(
-            "Sun in the 10th house brings success in career",
-            "Demo Astrology Book", 
-            planet="Sun",
-            house=10,
-            effect_desc="success in career"
-        )
-    ]
-    
-    # Store demo rules
-    kb = KnowledgeBase()
-    stored_count = kb.store_rules_batch(demo_rules)
-    
-    click.echo(f"✅ Created {stored_count} demo rules")
-    
-    # Show some searches
-    click.echo(f"\n🔍 Demo searches:")
-    
-    mars_rules = kb.search_rules(planet="Mars")
-    click.echo(f"   Mars rules: {len(mars_rules)}")
-    
-    house7_rules = kb.search_rules(house=7)
-    click.echo(f"   7th house rules: {len(house7_rules)}")
-    
-    # Show stats
-    stats = kb.get_database_stats()
-    click.echo(f"\n📊 Demo database stats:")
-    click.echo(f"   Total rules: {stats['total_rules']}")
-    
-    click.echo(f"\n✅ Demo complete! Try 'python cli.py search-rules --planet Mars'")
+    try:
+        config = get_config()
+        if not config:
+            click.echo("⚠️  Configuration system not available, using fallbacks")
+            return
+        
+        click.echo("🔧 Current Configuration")
+        click.echo("=" * 50)
+        
+        click.echo(f"Project Root: {config.directories.project_root}")
+        click.echo(f"Data Directory: {config.directories.data_dir}")
+        
+        click.echo(f"\n📁 Directory Structure:")
+        click.echo(f"   Books: {config.directories.books_dir}")
+        click.echo(f"   Rules: {config.directories.rules_dir}")
+        click.echo(f"   Charts: {config.directories.charts_dir}")
+        click.echo(f"   Exports: {config.directories.exports_dir}")
+        click.echo(f"   Logs: {config.directories.logs_dir}")
+        click.echo(f"   Cache: {config.directories.cache_dir}")
+        
+        click.echo(f"\n🗄️  Database Paths:")
+        click.echo(f"   Main: {config.get_database_path('main')}")
+        click.echo(f"   Test: {config.get_database_path('test')}")
+        
+        click.echo(f"\n⚙️  Processing Settings:")
+        click.echo(f"   Min sentence length: {config.processing.min_sentence_length}")
+        click.echo(f"   Max sentence length: {config.processing.max_sentence_length}")
+        click.echo(f"   Min confidence threshold: {config.processing.min_confidence_threshold}")
+        click.echo(f"   OCR correction: {config.processing.enable_ocr_correction}")
+        
+    except Exception as e:
+        click.echo(f"❌ Error getting configuration info: {e}")
 
 
 if __name__ == '__main__':

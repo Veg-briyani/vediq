@@ -1,0 +1,25 @@
+directories:
+  backup_subdir: backup
+  books_subdir: books
+  cache_subdir: cache
+  charts_subdir: charts
+  data_dir: data
+  exports_subdir: exports
+  logs_subdir: logs
+  rules_subdir: rules
+  temp_subdir: temp
+logging:
+  console_logging: true
+  file_logging: true
+  level: INFO
+  log_rotation: true
+  max_log_files: 5
+processing:
+  chunk_size: 1000
+  enable_ocr_correction: true
+  max_concurrent_files: 3
+  max_sentence_length: 500
+  min_confidence_threshold: 0.3
+  min_sentence_length: 10
+  preserve_original_text: true
+  strict_pattern_matching: false

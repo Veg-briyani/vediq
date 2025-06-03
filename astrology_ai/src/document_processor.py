@@ -4,7 +4,7 @@ Document processor for extracting text from astrology PDFs
 """
 
 try:
-    import PyPDF2
+     import PyPDF2
 except ImportError:
     print("Installing PyPDF2...")
     import subprocess
@@ -62,14 +62,168 @@ class DocumentProcessor:
     
     def clean_text(self, text: str) -> str:
         """Clean and normalize extracted text"""
-        # Remove extra whitespace
-        text = re.sub(r'\s+', ' ', text)
-        # Remove page numbers and common PDF artifacts
-        text = re.sub(r'\n\d+\n', '\n', text)
-        text = re.sub(r'\f', '\n', text)
-        # Fix common extraction issues
+        # Pre-processing: normalize characters and remove artifacts
         text = text.replace('�', '')
-        return text.strip()
+        text = re.sub(r'[\f\r]', '\n', text)
+        text = re.sub(r'\n\d+\n', '\n', text)
+        text = text.replace('\t', ' ')
+        
+        # Initial whitespace normalization
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Fix common word combinations first
+        common_combinations = {
+            r'(?i)\bto\s*the\b': 'to the',
+            r'(?i)\bin\s*the\b': 'in the',
+            r'(?i)\bof\s*the\b': 'of the',
+            r'(?i)\bby\s*the\b': 'by the',
+            r'(?i)\bwith\s*the\b': 'with the',
+            r'(?i)\bfrom\s*the\b': 'from the',
+            r'(?i)\bglory\s*to\b': 'glory to',
+            r'(?i)\bgives\s*up\b': 'gives up',
+            r'(?i)\baspected\s*by\b': 'aspected by',
+            r'(?i)\bplaced\s*in\b': 'placed in',
+            r'(?i)\bresults\s*in\b': 'results in',
+            r'(?i)\bleads\s*to\b': 'leads to',
+            r'(?i)\bif\s*the\b': 'if the',
+            r'(?i)\bthen\s*the\b': 'then the',
+            r'(?i)\band\s*the\b': 'and the',
+            r'(?i)\blike\s*the\b': 'like the'
+        }
+        
+        for pattern, replacement in common_combinations.items():
+            text = re.sub(pattern, replacement, text)
+        
+        # Split words aggressively
+        text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)  # camelCase
+        text = re.sub(r'([A-Za-z])([0-9])', r'\1 \2', text)  # letters and numbers
+        text = re.sub(r'([0-9])([A-Za-z])', r'\1 \2', text)  # numbers and letters
+        text = re.sub(r'([a-z])([A-Z][a-z])', r'\1 \2', text)  # wordWord
+        text = re.sub(r'([A-Z][a-z])([A-Z])', r'\1 \2', text)  # WordWORD
+        
+        # First pass: Fix verb-noun and noun-verb combinations
+        verb_noun_patterns = [
+            (r'(?i)Moonis', 'Moon is'),
+            (r'(?i)Marsis', 'Mars is'),
+            (r'(?i)Jupiteris', 'Jupiter is'),
+            (r'(?i)Saturnis', 'Saturn is'),
+            (r'(?i)should\s*be', 'should be'),
+            (r'(?i)be\s*aspected', 'be aspected'),
+            (r'(?i)produces\s*blood', 'produces blood'),
+            (r'(?i)produces\s*bile', 'produces bile'),
+            (r'(?i)gives\s*up', 'gives up'),
+            (r'(?i)water\s*produces', 'water produces'),
+            (r'(?i)fire\s*produces', 'fire produces')
+        ]
+        
+        for pattern, replacement in verb_noun_patterns:
+            text = re.sub(pattern, replacement, text)
+
+        # Second pass: Fix common phrases and compounds
+        phrase_patterns = [
+            (r'(?i)Glory\s*to\s*the', 'Glory to the'),
+            (r'(?i)whose\s*very\s*breathing', 'whose very breathing'),
+            (r'(?i)this\s*world', 'this world'),
+            (r'(?i)water\s*and', 'water and'),
+            (r'(?i)blood\s*and', 'blood and'),
+            (r'(?i)her\s*home', 'her home'),
+            (r'(?i)that\s*time', 'that time'),
+            (r'(?i)at\s*that', 'at that'),
+            (r'(?i)in\s*upachaya', 'in upachaya'),
+            (r'(?i)so\s*that\s*the', 'so that the'),
+            (r'(?i)inter\s*course', 'intercourse')
+        ]
+        
+        for pattern, replacement in phrase_patterns:
+            text = re.sub(pattern, replacement, text)
+
+        # Third pass: Fix word boundaries with common words
+        boundary_patterns = [
+            # Articles and determiners
+            (r'(?i)\b(the|an?|this|that|these|those)([a-z])', r'\1 \2'),
+            # Prepositions
+            (r'(?i)\b(in|on|at|by|to|for|with|from|of|as)([a-z])', r'\1 \2'),
+            # Conjunctions
+            (r'(?i)\b(and|or|but|nor|yet|so|if|then|when|while|where)([a-z])', r'\1 \2'),
+            # Verbs
+            (r'(?i)\b(is|are|was|were|be|been|being|has|have|had)([a-z])', r'\1 \2'),
+            (r'(?i)\b(do|does|did|will|would|shall|should|may|might|must)([a-z])', r'\1 \2'),
+            (r'(?i)\b(gives|produces|causes|makes|brings|leads|results)([a-z])', r'\1 \2'),
+            # Planets and signs
+            (r'(?i)\b(sun|moon|mars|mercury|jupiter|venus|saturn|rahu|ketu)([a-z])', r'\1 \2'),
+            # Astrological terms
+            (r'(?i)\b(house|sign|aspect|planet|degree|conjunction|opposition|trine|square)([a-z])', r'\1 \2')
+        ]
+        
+        for pattern, replacement in boundary_patterns:
+            text = re.sub(pattern, replacement, text)
+
+        # Fourth pass: Handle special cases
+        text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)  # camelCase
+        text = re.sub(r'([A-Z])([A-Z][a-z])', r'\1 \2', text)  # ABCdef
+        text = re.sub(r'([a-z])([0-9])', r'\1 \2', text)  # word123
+        text = re.sub(r'([0-9])([a-z])', r'\1 \2', text)  # 123word
+
+        # Final cleanup
+        text = re.sub(r'\s+', ' ', text)  # normalize spaces
+        text = text.strip()
+        
+        # Join single letters that should be together (like 's a' -> 'sa')
+        text = re.sub(r'\b([A-Za-z])\s([A-Za-z])\b(?!\s*[A-Za-z])', r'\1\2', text)
+        
+        # Fix common astrological terms
+        astro_terms = {
+            'Sun': ['sun', 'sungod', 'sunis', 'sunin', 'surya'],
+            'Moon': ['moon', 'moonis', 'moonin', 'chandra'],
+            'Mars': ['mars', 'marsis', 'marsin', 'mangal', 'kuja'],
+            'Mercury': ['mercury', 'mercuryis', 'mercuryin', 'budha'],
+            'Jupiter': ['jupiter', 'jupiteris', 'jupiterin', 'guru', 'brihaspati'],
+            'Venus': ['venus', 'venusis', 'venusin', 'shukra'],
+            'Saturn': ['saturn', 'saturnis', 'saturnin', 'shani'],
+            'Rahu': ['rahu', 'rahuis', 'rahuin'],
+            'Ketu': ['ketu', 'ketuis', 'ketuin']
+        }
+        
+        for proper, variants in astro_terms.items():
+            pattern = f"(?i)({'|'.join(variants)})"
+            text = re.sub(pattern, proper, text)
+        
+        # Fix common prepositions, articles and verbs
+        common_words = [
+            # Prepositions
+            'in', 'of', 'with', 'by', 'at', 'on', 'to', 'for', 'from', 'into',
+            # Articles
+            'the', 'a', 'an',
+            # Conjunctions
+            'and', 'or', 'but', 'if', 'when', 'while', 'because', 'that',
+            # Verbs
+            'is', 'are', 'was', 'were', 'will', 'shall', 'has', 'have', 'had',
+            'gives', 'causes', 'makes', 'brings', 'leads', 'results', 'produces',
+            'indicates', 'signifies', 'denotes', 'shows', 'suggests'
+        ]
+        
+        # Build pattern for word boundaries
+        pattern = f"(?i)\\b({'|'.join(common_words)})\\b([a-z])"
+        text = re.sub(pattern, r'\1 \2', text)
+        
+        # Fix spacing around punctuation
+        text = re.sub(r'([.,;!?])(?!\s)', r'\1 ', text)  # Add space after punctuation
+        text = re.sub(r'\s+([.,;!?])', r'\1', text)  # Remove space before punctuation
+        
+        # Fix spacing around quotes and parentheses
+        text = re.sub(r'(["\(])\s*', r'\1', text)
+        text = re.sub(r'\s*(["\)])', r'\1', text)
+        
+        # Fix specific patterns
+        text = re.sub(r'(?i)\b(to|in|of|by|with|from)the\b', r'\1 the', text)  # Fix merged articles
+        text = re.sub(r'(?i)\b(gives|results|leads|placed|aspected)\s*(up|in|to|by)\b', r'\1 \2', text)  # Fix verb phrases
+        
+        # Final cleanup
+        text = re.sub(r'\b(\w+)\s+\1\b', r'\1', text)  # Remove repeated words
+        text = re.sub(r'\s+', ' ', text)  # Normalize whitespace
+        text = text.strip()
+        
+        return text
     
     def chunk_into_sentences(self, text: str) -> List[str]:
         """Split text into sentences for easier processing"""
