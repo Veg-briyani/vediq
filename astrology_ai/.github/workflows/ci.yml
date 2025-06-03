@@ -1,0 +1,208 @@
+name: Astrology AI - Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        # Install test dependencies
+        pip install pytest pytest-cov
+    
+    - name: Download spaCy model
+      run: |
+        python -m spacy download en_core_web_sm
+    
+    - name: Create required directories
+      run: |
+        mkdir -p data/books data/rules data/charts data/exports data/logs data/cache data/backup data/temp
+    
+    - name: Run setup test
+      run: |
+        cd astrology_ai
+        python -m src.cli test-setup
+    
+    - name: Test imports and basic functionality
+      run: |
+        cd astrology_ai
+        python -c "
+        import sys
+        sys.path.append('.')
+        
+        # Test core imports
+        from src import AstrologyAI, DocumentProcessor, RuleExtractor, KnowledgeBase
+        from src.data_models import AstrologicalRule, SourceInfo, AuthorityLevel
+        
+        # Test basic functionality
+        processor = DocumentProcessor()
+        extractor = RuleExtractor()
+        kb = KnowledgeBase(':memory:')  # Use in-memory database for testing
+        
+        # Test configuration system
+        try:
+            from src import get_config
+            config = get_config()
+            print('✅ Configuration system working')
+        except Exception as e:
+            print(f'⚠️ Config system fallback: {e}')
+        
+        print('✅ All components initialized successfully')
+        "
+    
+    - name: Test rule extraction
+      run: |
+        cd astrology_ai
+        python -c "
+        import sys
+        sys.path.append('.')
+        
+        from src.rule_extractor import RuleExtractor
+        from src.data_models import SourceInfo, AuthorityLevel
+        
+        # Test rule extraction with sample text
+        extractor = RuleExtractor()
+        source = SourceInfo(title='Test', authority_level=AuthorityLevel.CLASSICAL)
+        
+        test_sentences = [
+            'Mars in the 7th house causes conflicts in marriage',
+            'Jupiter in its own sign gives wisdom and prosperity',
+            'Sun in the 10th house brings success in career'
+        ]
+        
+        rules = extractor.extract_rules_from_sentences(test_sentences, source)
+        
+        assert len(rules) > 0, 'No rules extracted from test sentences'
+        print(f'✅ Successfully extracted {len(rules)} rules from test data')
+        
+        # Test individual components
+        planet = extractor.extract_planet_advanced('Mars in the 7th house')
+        house = extractor.extract_house_advanced('Mars in the 7th house')
+        
+        assert planet == 'Mars', f'Expected Mars, got {planet}'
+        assert house == 7, f'Expected house 7, got {house}'
+        
+        print('✅ Rule extraction components working correctly')
+        "
+    
+    - name: Test knowledge base operations
+      run: |
+        cd astrology_ai
+        python -c "
+        import sys
+        sys.path.append('.')
+        
+        from src.knowledge_base import KnowledgeBase
+        from src.rule_extractor import RuleExtractor
+        from src.data_models import SourceInfo, AuthorityLevel
+        
+        # Test with in-memory database
+        kb = KnowledgeBase(':memory:')
+        extractor = RuleExtractor()
+        source = SourceInfo(title='Test Source', authority_level=AuthorityLevel.TRADITIONAL)
+        
+        # Extract and store test rules
+        test_sentences = ['Mars in the 7th house causes conflicts in marriage']
+        rules = extractor.extract_rules_from_sentences(test_sentences, source)
+        
+        if rules:
+            stored_count = kb.store_rules_batch(rules)
+            assert stored_count > 0, 'Failed to store rules in database'
+            
+            # Test search functionality
+            search_results = kb.search_rules(planet='Mars')
+            assert len(search_results) > 0, 'Search failed to find Mars rules'
+            
+            # Test statistics
+            stats = kb.get_database_stats()
+            assert stats['total_rules'] > 0, 'Statistics show no rules'
+            
+            print(f'✅ Knowledge base operations successful: {stored_count} rules stored')
+        else:
+            print('⚠️ No rules extracted for testing')
+        "
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install linting tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 black isort mypy
+    
+    - name: Run black (code formatting check)
+      run: |
+        black --check --diff astrology_ai/src/
+    
+    - name: Run isort (import sorting check)
+      run: |
+        isort --check-only --diff astrology_ai/src/
+    
+    - name: Run flake8 (linting)
+      run: |
+        flake8 astrology_ai/src/ --max-line-length=88 --extend-ignore=E203,W503
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install security tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install bandit safety
+    
+    - name: Run bandit (security linting)
+      run: |
+        bandit -r astrology_ai/src/ -f json -o bandit-report.json || true
+    
+    - name: Run safety (dependency security check)
+      run: |
+        safety check --json --output safety-report.json || true
+    
+    - name: Upload security reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+          safety-report.json 
