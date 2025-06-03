@@ -11,3 +11,9 @@ PyYAML>=6.0
 
 # Additional utilities
 python-dateutil>=2.8.2
+
+# Astrological calculations
+pyephem>=4.1.0
+astropy>=7.0.0
+flatlib==0.2.3
+pyswisseph>=2.10.0
